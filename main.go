@@ -6,6 +6,7 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log"
 	"math/rand"
+	"sync"
 )
 
 var (
@@ -100,4 +101,33 @@ func consume() {
 			}
 		}
 	}
+}
+
+type Storage struct {
+	data map[string][]byte
+	mu   sync.RWMutex
+}
+
+func NewStorage() *Storage {
+	return &Storage{
+		data: make(map[string][]byte),
+	}
+}
+
+func (s *Storage) Put(key string, value []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[key] = value
+
+	return nil
+}
+
+func (s *Storage) Get(key string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	value, ok := s.data[key]
+	if !ok {
+		return nil, fmt.Errorf("value not found")
+	}
+	return value, nil
 }
