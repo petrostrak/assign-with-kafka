@@ -25,12 +25,11 @@ const (
 )
 
 func main() {
-	if err := produce(); err != nil {
-		fmt.Println(err)
-	}
+	produce()
+	consume()
 }
 
-func produce() error {
+func produce() {
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost:9093",
 	})
@@ -39,14 +38,13 @@ func produce() error {
 	}
 	defer p.Close()
 
-	var states = []int{0, 1, 2}
 	for i := 0; i < 1000; i++ {
 		msg := Message{
-			State: MessageState(states[rand.Intn(len(states))]),
+			State: MessageState(rand.Intn(3)),
 		}
 		b, err := json.Marshal(msg)
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 		err = p.Produce(&kafka.Message{
 			TopicPartition: kafka.TopicPartition{
@@ -59,6 +57,47 @@ func produce() error {
 			log.Fatal(err)
 		}
 	}
+}
 
-	return nil
+func consume() {
+	c, err := kafka.NewConsumer(&kafka.ConfigMap{
+		"bootstrap.servers":        "localhost:9093",
+		"broker.address.family":    "v4",
+		"group.id":                 "group1",
+		"session.timeout.ms":       6000,
+		"auto.offset.reset":        "earliest",
+		"enable.auto.offset.store": false,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = c.SubscribeTopics([]string{topic}, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for {
+		ev := c.Poll(100)
+		if ev == nil {
+			continue
+		}
+		switch e := ev.(type) {
+		case *kafka.Message:
+			_, err := c.StoreMessage(e)
+			if err != nil {
+				fmt.Println("store msg err: ", err)
+			}
+			var msg Message
+			if err := json.Unmarshal(e.Value, &msg); err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(msg)
+		case kafka.Error:
+			if e.Code() == kafka.ErrAllBrokersDown {
+				break
+			}
+		}
+	}
 }
