@@ -7,29 +7,33 @@ import (
 
 type Storer interface {
 	Put(MessageState, []byte) error
-	Get(state MessageState) ([]byte, error)
+	Get(state MessageState) ([][]byte, error)
 }
 
 type Storage struct {
-	data map[MessageState][]byte
+	data map[MessageState][][]byte
 	mu   sync.RWMutex
 }
 
 func NewStorage() *Storage {
+	data := make(map[MessageState][][]byte)
+	data[MessageStateCompleted] = [][]byte{}
+	data[MessageStateFailed] = [][]byte{}
+	data[MessageStateInProgress] = [][]byte{}
 	return &Storage{
-		data: make(map[MessageState][]byte),
+		data: data,
 	}
 }
 
 func (s *Storage) Put(state MessageState, value []byte) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.data[state] = value
+	s.data[state] = append(s.data[state], value)
 
 	return nil
 }
 
-func (s *Storage) Get(state MessageState) ([]byte, error) {
+func (s *Storage) Get(state MessageState) ([][]byte, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	value, ok := s.data[state]
