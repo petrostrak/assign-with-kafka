@@ -1,16 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 type Consumer struct {
 	Consumer *kafka.Consumer
 	Storage  Storer
-	Quit     chan any
 }
 
 func NewConsumer(storage Storer) (*Consumer, error) {
@@ -35,19 +36,14 @@ func NewConsumer(storage Storer) (*Consumer, error) {
 	return &Consumer{
 		Consumer: c,
 		Storage:  NewStorage(),
-		Quit:     make(chan any),
 	}, nil
 }
 
-func (c *Consumer) Stop() {
-	c.Quit <- struct{}{}
-}
-
-func (c *Consumer) consume() {
+func (c *Consumer) consume(ctx context.Context) {
 free:
 	for {
 		select {
-		case <-c.Quit:
+		case <-ctx.Done():
 			break free
 		default:
 			ev := c.Consumer.Poll(100)
@@ -77,6 +73,6 @@ free:
 	}
 }
 
-func (c *Consumer) Start() {
-	c.consume()
+func (c *Consumer) Start(ctx context.Context) {
+	c.consume(ctx)
 }

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log"
+	"log/slog"
 	"math/rand"
+
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
 var (
@@ -23,7 +26,7 @@ const (
 	MessageStateInProgress
 )
 
-func produce() {
+func produce(cancel context.CancelFunc) {
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost:9093",
 	})
@@ -32,7 +35,8 @@ func produce() {
 	}
 	defer p.Close()
 
-	for i := 0; i < 1000; i++ {
+	slog.Info("start producing", "topic", topic, "messages", lenMessages)
+	for i := 0; i < lenMessages; i++ {
 		msg := Message{
 			State: MessageState(rand.Intn(3)),
 		}
@@ -51,4 +55,6 @@ func produce() {
 			log.Fatal(err)
 		}
 	}
+	cancel()
+	slog.Info("start producing", "topic", topic, "messages", lenMessages)
 }
